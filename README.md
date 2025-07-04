@@ -10,6 +10,8 @@ name: Release
 on:
   push:
     branches: [main]  # your main branch
+    paths:
+      - 'Cargo.toml'
 
 jobs:
   release:
