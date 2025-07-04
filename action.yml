@@ -16,7 +16,6 @@ runs:
     - name: Compare versions
       id: compare-versions
       run: |
-        # Check if any tags exist
         if [ $(git tag -l | wc -l) -eq 0 ]; then
           echo "No tags found - proceeding with first release"
           LOCAL_VERSION=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
@@ -36,11 +35,6 @@ runs:
         echo "local_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
       shell: bash
 
-    - name: Create local tag
-      if: steps.compare-versions.outputs.local_version != ''
-      run: git tag v${{ steps.compare-versions.outputs.local_version }}
-      shell: bash
-
     - name: Generate changelog
       if: steps.compare-versions.outputs.local_version != ''
       uses: tj-actions/git-cliff@v1
@@ -57,6 +51,11 @@ runs:
         echo "EOF" >>$GITHUB_OUTPUT
       shell: bash
       id: get-content
+    
+    - name: Create local tag
+      if: steps.compare-versions.outputs.local_version != ''
+      run: git tag v${{ steps.compare-versions.outputs.local_version }}
+      shell: bash
 
     - name: Create release
       if: steps.compare-versions.outputs.local_version != ''
