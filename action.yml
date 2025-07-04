@@ -1,0 +1,76 @@
+name: rust-release
+description: Create a release when the version in Cargo.toml differs from the latest tag, using git-cliff for changelog and optionally publishing to crates.io
+inputs:
+  crates_io_token:
+    description: "crates.io API token"
+    required: false
+    default: ""
+  cliff_template:
+    description: "URL to git-cliff template configuration"
+    required: false
+    default: "https://raw.githubusercontent.com/jokelbaf/rust-release/master/cliff-template.toml"
+  changelog_file:
+    description: "Name of the generated changelog file"
+    required: false
+    default: "CHANGELOG.md"
+
+runs:
+  using: composite
+  steps:
+    - name: Compare versions
+      id: compare-versions
+      run: |
+        REMOTE_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+        LOCAL_VERSION=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
+        echo "Remote: $REMOTE_VERSION, Local: $LOCAL_VERSION"
+        if [ "$REMOTE_VERSION" = "$LOCAL_VERSION" ]; then
+          echo "Versions match - skipping release"
+          exit 0
+        fi
+        echo "local_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Create local tag
+      if: steps.compare-versions.outputs.local_version != ''
+      run: git tag v${{ steps.compare-versions.outputs.local_version }}
+      shell: bash
+
+    - name: Prepare git-cliff template
+      if: steps.compare-versions.outputs.local_version != ''
+      id: prepare-cliff
+      run: |
+        curl -sL "${{ inputs.cliff_template }}" -o cliff.toml
+        REPO_URL="https://${{ github.server_url }}/${{ github.repository }}"
+        sed -i "s|REPOSITORY_URL|$REPO_URL|g" cliff.toml
+        echo "template_path=cliff.toml" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Generate changelog
+      if: steps.compare-versions.outputs.local_version != ''
+      uses: tj-actions/git-cliff@v1
+      with:
+        template-config: ${{ steps.prepare-cliff.outputs.template_path }}
+        output: ${{ inputs.changelog_file }}
+        args: --latest --strip header
+
+    - name: Push new tag
+      if: steps.compare-versions.outputs.local_version != ''
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git push origin v${{ steps.compare-versions.outputs.local_version }}
+      shell: bash
+
+    - name: Create release
+      if: steps.compare-versions.outputs.local_version != ''
+      uses: softprops/action-gh-release@v2
+      with:
+        body: file:${{ inputs.changelog_file }}
+        tag_name: v${{ steps.compare-versions.outputs.local_version }}
+
+    - name: Publish to crates.io
+      if: steps.compare-versions.outputs.local_version != '' && inputs.crates_io_token != ''
+      run: |
+        cargo login ${{ inputs.crates_io_token }}
+        cargo publish
+      shell: bash
