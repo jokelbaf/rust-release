@@ -9,10 +9,6 @@ inputs:
     description: "URL to git-cliff template configuration"
     required: false
     default: "https://raw.githubusercontent.com/jokelbaf/rust-release/master/cliff-template.toml"
-  changelog_file:
-    description: "Name of the generated changelog file"
-    required: false
-    default: "CHANGELOG.md"
 
 runs:
   using: composite
@@ -45,37 +41,28 @@ runs:
       run: git tag v${{ steps.compare-versions.outputs.local_version }}
       shell: bash
 
-    - name: Prepare git-cliff template
-      if: steps.compare-versions.outputs.local_version != ''
-      id: prepare-cliff
-      run: |
-        curl -sL "${{ inputs.cliff_template }}" -o cliff.toml
-        REPO_URL="https://${{ github.server_url }}/${{ github.repository }}"
-        sed -i "s|REPOSITORY_URL|$REPO_URL|g" cliff.toml
-        echo "template_path=cliff.toml" >> $GITHUB_OUTPUT
-      shell: bash
-
     - name: Generate changelog
       if: steps.compare-versions.outputs.local_version != ''
       uses: tj-actions/git-cliff@v1
       with:
-        template-config: ${{ steps.prepare-cliff.outputs.template_path }}
-        output: ${{ inputs.changelog_file }}
+        template-config: ${{ inputs.cliff_template }}
         args: --latest --strip header
+      id: git-cliff
 
-    - name: Push new tag
+    - name: Get changelog content
       if: steps.compare-versions.outputs.local_version != ''
       run: |
-        git config --global user.name "github-actions"
-        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git push origin v${{ steps.compare-versions.outputs.local_version }}
+        echo "content<<EOF" >>$GITHUB_OUTPUT
+        cat "HISTORY.md" >>$GITHUB_OUTPUT
+        echo "EOF" >>$GITHUB_OUTPUT
       shell: bash
+      id: get-content
 
     - name: Create release
       if: steps.compare-versions.outputs.local_version != ''
       uses: softprops/action-gh-release@v2
       with:
-        body: file:${{ inputs.changelog_file }}
+        body: ${{ steps.get-content.outputs.content }}
         tag_name: v${{ steps.compare-versions.outputs.local_version }}
 
     - name: Publish to crates.io
