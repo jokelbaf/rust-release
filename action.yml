@@ -1,5 +1,5 @@
 name: rust-release
-description: Create a release when the version in Cargo.toml differs from the latest tag, using git-cliff for changelog and optionally publishing to crates.io
+description: Create a release when the version in Cargo.toml differs from the latest tag
 inputs:
   crates_io_token:
     description: "crates.io API token"
@@ -20,13 +20,23 @@ runs:
     - name: Compare versions
       id: compare-versions
       run: |
+        # Check if any tags exist
+        if [ $(git tag -l | wc -l) -eq 0 ]; then
+          echo "No tags found - proceeding with first release"
+          LOCAL_VERSION=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
+          echo "local_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
         REMOTE_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
         LOCAL_VERSION=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
         echo "Remote: $REMOTE_VERSION, Local: $LOCAL_VERSION"
+        
         if [ "$REMOTE_VERSION" = "$LOCAL_VERSION" ]; then
           echo "Versions match - skipping release"
           exit 0
         fi
+        
         echo "local_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
       shell: bash
 
