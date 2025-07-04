@@ -40,7 +40,6 @@ runs:
       uses: tj-actions/git-cliff@v1
       with:
         template-config: ${{ inputs.cliff_template }}
-        output: HISTORY.md
         args: --latest --strip header
       id: git-cliff
 
