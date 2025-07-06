@@ -1,6 +1,6 @@
 # Rust Release Action
 
-Automatically creates and published GitHub releases for Rust projects when `Cargo.toml` version is updated. Supports publishing to crates.io as well.
+Automatically creates and publishes GitHub releases for Rust projects when `Cargo.toml` version is updated. Supports publishing to crates.io as well.
 
 ## Usage
 
